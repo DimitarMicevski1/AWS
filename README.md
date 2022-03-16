@@ -2,23 +2,23 @@
 
 Used Cloudformation to create following resources in North Virginia region:
 
-VPC
+1. VPC
 - Internet Gateway
 - Internet Gateway Association
-Private subnet
-Public subnet
-Public route table
-Gateway route
-Public Route table subnet association
-AWSTemplateFormatVersion: "2010-09-09"
+- Private subnet
+- Public subnet
+- Public route table
+- Gateway route
+- Public Route table subnet association
+- AWSTemplateFormatVersion: "2010-09-09"
 
-Created NAT instance
-Created EC2 in Public subnet
-Created EC2 in private subnet
-Security group for NAT instance
+2. Created NAT instance
+- Created EC2 in Public subnet
+- Created EC2 in private subnet
+- Security group for NAT instance
 
-Allowed all inbound traffic from private subnet
-Security group for JumpBox instance
+3. Allowed all inbound traffic from private subnet
+- Security group for JumpBox instance
 Allowed inbound traffic to port 22 from your public IP
 Security group for Public EC2 instance (apache web server)
 Allowed inbound traffic to port 80 from everywhere
