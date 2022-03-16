@@ -3,8 +3,8 @@
 Used Cloudformation to create following resources in North Virginia region:
 
 VPC
-Internet Gateway
-Internet Gateway Association
+- Internet Gateway
+- Internet Gateway Association
 Private subnet
 Public subnet
 Public route table
