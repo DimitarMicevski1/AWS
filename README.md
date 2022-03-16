@@ -46,12 +46,10 @@ Used Cloudformation to create following resources in North Virginia region:
 
 6. Create a Lambda function using AWS console
 - Lambda properties: Set memory to 256 MB, Set timeout to 5 sec.
-
-7. Examine the role taht is assigned to the lambda function
+- Examine the role taht is assigned to the lambda function
 - Create a test event as it comes from S3
 - Execute the lambda with created test event
 - Examine the cloudwatch log
-
 - Took the lambda code in a local file and open it in VS Code
 - Updated the code to output the event object in the response body
 - Zip the code and upload it to the lambda function to update it.
