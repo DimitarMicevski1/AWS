@@ -1,0 +1,310 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+
+  VPCCIDR:
+    Type: String
+    Default: 10.1.0.0/16
+
+  PrivateSubnetCIDR:
+    Type: String
+    Default: 10.1.1.0/24
+
+  PublicSubnetCIDR:
+    Type: String
+    Default: 10.1.2.0/24    
+
+Resources:
+
+  BackupS3:
+    Type: AWS::S3::Bucket
+    Properties: 
+      Tags: 
+        - Key: Name
+          Value: BackupS3Bucket
+
+  ### VPC
+
+  MentorshipVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCIDR
+      Tags:
+      - Key: Name
+        Value: MentorshipVPC
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PrivateSubnetCIDR
+      VpcId: !Ref MentorshipVPC
+      Tags:
+        - Key: Name
+          Value: MentorshipPrivateSubnet      
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PublicSubnetCIDR 
+      VpcId: !Ref MentorshipVPC
+      Tags:
+        - Key: Name
+          Value: MentorshipPublicSubnet
+ 
+  MentorshipIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: MentorshipInternetGateway
+
+  IGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref MentorshipIGW
+      VpcId: !Ref MentorshipVPC
+
+  ### Public Route Table
+
+  MentorshipPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MentorshipVPC
+      Tags:
+      - Key: Name
+        Value: PublicRouteTable
+      - Key: Project
+        Value: Mentorship
+
+  MentorshipRTGWRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MentorshipIGW
+      RouteTableId: !Ref MentorshipPublicRouteTable
+
+  PulbicRouteSubnetAsociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref MentorshipPublicRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  ### JumpBox Security Group
+
+  JumpBoxSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'JumpBox Security Group'
+      GroupName: JumpBoxSG
+      SecurityGroupIngress:
+        - CidrIp: 77.29.11.33/32
+          Description: 'SSH From My IP'
+          FromPort: 22
+          ToPort: 22
+          IpProtocol: tcp
+      VpcId: !Ref MentorshipVPC
+      Tags:
+        - Key: Name
+          Value: JumpBox Security Group
+
+  ### JumpBox Instance
+
+  JumpBoxEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-08e4e35cccc6189f4
+      InstanceType: t2.micro
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          SubnetId: 
+            Ref: PublicSubnet
+          GroupSet:
+            - !Ref JumpBoxSecurityGroup
+      KeyName: keypair
+      Tags:
+        - Key: Name
+          Value: JumpBox EC2 Instance
+
+### NAT Security Group
+
+  NATSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'NAT Security Group'
+      SecurityGroupIngress:
+        - CidrIp: !Ref PrivateSubnetCIDR
+          Description: 'Traffic from private subnet'
+          FromPort: -1
+          ToPort: -1
+          IpProtocol: -1
+      VpcId: !Ref MentorshipVPC
+      Tags:
+        - Key: Name
+          Value: NAT Security Group
+
+### NAT Instance
+
+  MentorshipNATInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-00a36856283d67c39
+      InstanceType: t2.micro
+      KeyName: keypair
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds:
+        - !Ref NATSecurityGroup
+      SourceDestCheck: false
+      Tags:
+        - Key: Name
+          Value: Nat-Instance
+
+  NATEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref MentorshipNATInstance
+      Tags:
+        - Key: Name
+          Value: NAT Elastic IP
+
+  ### Private Route Table
+
+  MentorshipPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MentorshipVPC
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTable
+        - Key: Project
+          Value: Mentorship
+
+  MentorshipPrivateRTNATRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      InstanceId: !Ref MentorshipNATInstance
+      RouteTableId: !Ref MentorshipPrivateRouteTable
+
+  PrivateRouteSubnetAsociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref MentorshipPrivateRouteTable
+      SubnetId: !Ref PrivateSubnet    
+
+### Public EC2 Security Group  
+
+  PublicEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Public EC2 Security Group'
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          Description: 'HTTP From Everyone'  
+          FromPort: 80
+          ToPort: 80
+          IpProtocol: tcp
+        - SourceSecurityGroupId: !Ref JumpBoxSecurityGroup
+          Description: 'SSH From JumpBox'
+          FromPort: 22
+          ToPort: 22
+          IpProtocol: tcp
+      VpcId: !Ref MentorshipVPC
+      Tags:
+        - Key: Name
+          Value: Private EC2 Security Group      
+
+  # Public EC2 IAM Role
+
+  PublicEC2IAMRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: 'PublicEC2 IAM Role'
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      RoleName: 'PublicEC2IAMRole'
+      Tags: 
+        - Key: Name
+          Value: PublicEC2IAMRole
+
+  ### Public EC2 Instance profile
+
+  PublicEC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      InstanceProfileName: PublicEC2InstanceProfile
+      Roles: 
+        - !Ref PublicEC2IAMRole
+       
+###  EC2 Instance 
+
+  PublicEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-08e4e35cccc6189f4
+      InstanceType: t2.micro
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          SubnetId:
+            Ref: PublicSubnet
+          GroupSet:
+            - !Ref PublicEC2SecurityGroup
+      KeyName: keypair 
+      IamInstanceProfile: !Ref PublicEC2InstanceProfile
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+            - ""
+            - - "#!/bin/bash\n"
+              - "sudo yum update -y\n"
+              - "sudo yum install -y httpd\n"
+              - "sudo systemctl start httpd\n"
+              - "sudo systemctl enable httpd\n"
+              - "sudo aws s3 cp s3://"
+              - !Ref BackupS3
+              - "/index.html /var/www/html/index.html\n"
+      Tags:
+        - Key: Name
+          Value: Public EC2 Instance     
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LambdaRole
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: LambdaFunction
+      Role: !GetAtt LambdaRole.Arn
+      MemorySize: 256
+      Runtime: 0.5
+      Runtime: nodejs14.x
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            const response = {
+                statusCode: 200,
+                body: JSON.stringify(event),
+            };
+            console.log("Event:")
+            console.log(JSON.stringify(event))
+            return response;
+          }          

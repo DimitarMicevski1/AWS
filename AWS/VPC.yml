@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Resources:
+
+  MentorshipVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      Tags:
+      - Key: Name
+        Value: MentorshipVPC
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.1.1.0/24
+      VpcId: !Ref MentorshipVPC
+      Tags:
+        - Key: Name
+          Value: MentorshipPrivateSubnet      
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.1.2.0/24
+      VpcId: !Ref MentorshipVPC
+      Tags:
+        - Key: Name
+          Value: MentorshipPublicSubnet
+ 
+  MentorshipIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: MentorshipInternetGateway
+
+  IGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref MentorshipIGW
+      VpcId: !Ref MentorshipVPC
+
+  MentorshipPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: MentorshipVPC
+      Tags:
+      - Key: Name
+        Value: Mentorship
+
+  MentorshipRTGWRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MentorshipIGW
+      RouteTableId: !Ref MentorshipPublicRouteTable
+
+  PulbicRouteSubnetAsociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref MentorshipPublicRouteTable
+      SubnetId: !Ref PublicSubnet

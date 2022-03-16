@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Resources:
+
+  ### VPC
+
+  MentorshipVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      Tags:
+      - Key: Name
+        Value: MentorshipVPC
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.1.1.0/24
+      VpcId: !Ref MentorshipVPC
+      Tags:
+        - Key: Name
+          Value: MentorshipPrivateSubnet      
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.1.2.0/24
+      VpcId: !Ref MentorshipVPC
+      Tags:
+        - Key: Name
+          Value: MentorshipPublicSubnet
+ 
+  MentorshipIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: MentorshipInternetGateway
+
+  IGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref MentorshipIGW
+      VpcId: !Ref MentorshipVPC
+
+  ### Public Route Table
+
+  MentorshipPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MentorshipVPC
+      Tags:
+      - Key: Name
+        Value: PublicRouteTable
+      - Key: Project
+        Value: Mentorship
+
+  MentorshipRTGWRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MentorshipIGW
+      RouteTableId: !Ref MentorshipPublicRouteTable
+
+  PulbicRouteSubnetAsociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref MentorshipPublicRouteTable
+      SubnetId: !Ref PublicSubnet
+
+### NAT Instance
+
+  MentorshipNATInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-00a36856283d67c39
+      InstanceType: t2.micro
+      KeyName: NAT-Private-Key
+      SubnetId: !Ref PublicSubnet
+      SourceDestCheck: false
+      Tags:
+        - Key: Name
+          Value: Nat-Instance
+
+  NATEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref MentorshipNATInstance
+      Tags:
+        - Key: Name
+          Value: NAT Elastic IP
+
+  ### Private Route Table
+
+  MentorshipPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MentorshipVPC
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTable
+        - Key: Project
+          Value: Mentorship
+
+  MentorshipPrivateRTNATRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      InstanceId: !Ref MentorshipNATInstance
+      RouteTableId: !Ref MentorshipPrivateRouteTable
+
+  PrivateRouteSubnetAsociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref MentorshipPrivateRouteTable
+      SubnetId: !Ref PrivateSubnet    
+
+  PublicEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-08e4e35cccc6189f4
+      InstanceType: t2.micro
+      SubnetId: !Ref PublicSubnet
+      KeyName: Public-Instance
+      Tags:
+        - Key: Name
+          Value: Public EC2 Instance     
+      
